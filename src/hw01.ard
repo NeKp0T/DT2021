@@ -84,15 +84,11 @@
   | true => t
   | false => f
 
-\func mod (x y : Nat) : Nat => mod' x y y
-    -- checks from s-1 to zero
+\func mod (x y : Nat) : Nat => mod' x y x
     \where
       \func mod' (x y s : Nat) : Nat \elim s
         | 0 => 0
-        | suc s' => if_nat (eq' s' x y (suc x)) s' (mod' x y s')
-      \func eq' (a b d s : Nat) : Bool \elim s
-        | 0 => false
-        | suc s' => if (eq a b) true (eq' (a + d) b d s')
+        | suc s' => if_nat (x < y) x (mod' (x - y) y s')
 
 
 \func max (x y : Nat) : Nat => if_nat (x < y) y x
@@ -105,4 +101,4 @@
     \where
       \func gcd' (x y s : Nat) : Nat \elim s
         | 0 => 0
-        | suc s' => gcd' y (mod x y) s'
+        | suc s' => if_nat (eq 0 y) x (gcd' y (mod x y) s')
