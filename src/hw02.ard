@@ -1,44 +1,118 @@
 \import Utils
+\import hw01 (fac)
+\import lect01 ($, Nat', suc', zero')
 
 -- 1. Определите полиморфный tail для списков.
 
+\func tail {A : \Type} (xs : List A) : List A
+  | nil => nil
+  | cons x xs => xs
+
 -- 2. Реализуйте любой (but choose wisely) алгоритм сортировки. Функцию сравнения можно принимать в качестве аргумента.
+
+\func intcmp (x y : Nat') : Bool
+  | zero', y => true
+  | x, zero' => false
+  | suc' x, suc' y => intcmp x y
+
+\func insertionsort {A : \Type} (comp : A -> A -> Bool) (xs : List A) : List A => fold-sort comp nil xs
+  \where {
+    \func insert {A : \Type} (comp : A -> A -> Bool) (sorted : List A) (x : A) : List A \elim sorted
+      | nil => cons x nil
+      | cons s ss1 \as ss => if (comp x s) (cons x ss) (cons s (insert comp ss1 x))
+
+    --      | cons s nil => if (comp s x) (cons s (cons x nil)) (cons x (cons s nil))
+    --      | cons s1 (cons s2 ss2 \as ss1) \as ss =>
+    --        if (comp x s1)
+    --          (cons x ss)
+    --          (cons s1 (
+    --
+--          ))
+
+    \func fold-sort {A : \Type} (comp : A -> A -> Bool) (sorted : List A) (unsorted : List A) : List A \elim unsorted
+      | nil => sorted
+      | cons x unsorted => fold-sort comp (insert comp sorted x) unsorted
+  }
+
+\func sort-test => insertionsort intcmp (cons (suc' (suc' (suc' zero'))) (cons zero' (cons (suc' (suc' zero')) nil)))
 
 -- 3. Докажите ассоциативность && и ||.
 
-\func &&-assoc (x y z : Bool) : (x && y) && z = x && (y && z) => {?}
+\func &&-assoc (x y z : Bool) : (x && y) && z = x && (y && z) \elim x, y
+  | true, true => idp
+  | true, false => idp
+  | false, _ => idp
 
-\func ||-assoc (x y z : Bool) : (x || y) || z = x || (y || z) => {?}
+\func ||-assoc (x y z : Bool) : (x || y) || z = x || (y || z) \elim x, y
+  | true, _ => idp
+  | false, true => idp
+  | false, false => idp
 
 -- 4. Докажите, что fac 3 равно 6.
+
+\func fac-3-is-6 : (fac (suc (suc (suc zero))) = (suc (suc (suc (suc (suc (suc zero))))))) => idp
+
+\func fac-3-is-6' : (fac 3 = 6) => idp
+
+-- блин так можно было
 
 -- 5. Докажите следующие пропозициональные тавтологии (choose 2 out of 3).
 
 -- t1 : (P and Q -> R) -> P -> Q -> R
-\func t1 {P Q R : \Type} (f : \Sigma P Q -> R) (p : P) (q : Q) : R => {?}
+
+\func t1 {P Q R : \Type} (f : \Sigma P Q -> R) (p : P) (q : Q) : R => f (p, q)
 
 -- t2 : (P -> R) -> (Q -> R) -> P or Q -> R
-\func t2 {P Q R : \Type} (f : P -> R) (g : Q -> R) (h : Either P Q) : R => {?}
+
+\func t2 {P Q R : \Type} (f : P -> R) (g : Q -> R) (h : Either P Q) : R \elim h
+  | inl p => f p
+  | inr q => g q
 
 -- t3 : ((P -> Q -> R) -> P) -> (P -> R) -> R
+
 \func t3 {P Q R : \Type} (f : (P -> Q -> R) -> P) (g : P -> R) : R => {?}
 
 -- 6. Сформулируйте и докажите следующие пропозициональные тавтологии (choose 2 out of 3).
 
 -- t4 : (P -> Q -> R) -> P and Q -> R
+
+\func t4 {P Q R : \Type} (f : P -> Q -> R) (pq : \Sigma  P Q) : R \elim pq
+  | (p, q) => f p q
+
 -- t5 : (P or Q -> P and Q) -> (P -> Q) and (Q -> P)
+
+\func t5 {P Q : \Type} (f : Either P Q -> \Sigma P Q) : \Sigma (P -> Q) (Q -> P) =>
+  \let | g1 => \lam (p : P) => (f (inl p)).2
+       | g2 => \lam (q : Q) => (f (inr q)).1
+  \in (g1, g2)
+
 -- t6 : ((((P -> Q) -> P) -> P) -> Q) -> Q
 
 -- 7. Докажите следующие утверждения.
 
 -- s1 : Если для любого x : Nat верно P(x), то существует x : Nat для которого P(x) верно.
-\func s1 (P : Nat -> \Type) (h : \Pi (x : Nat) -> P x) : \Sigma (x : Nat) (P x) => {?}
+
+\func s1 (P : Nat -> \Type) (h : \Pi (x : Nat) -> P x) : \Sigma (x : Nat) (P x) => (0, h 0)
 
 -- s2 : Если не существует x : Nat такого, что верно P(x), то P(3) не верно.
-\func s2 (P : Nat -> \Type) (h : \Sigma (x : Nat) (P x) -> Empty) : P 3 -> Empty => {?}
+
+\func s2 (P : Nat -> \Type) (h : \Sigma (x : Nat) (P x) -> Empty) : P 3 -> Empty => \lam (t : P 3) => h (3, t)
 
 -- 8. Сформулируйте и докажите следующие утверждения.
 
 -- s3 : Если для всех x : Nat верно, что P(x) влечет Q(x), и существует x : Nat для которого верно P(x), то существует x : Nat для которого верно Q(x).
 
+\func s3 (P : Nat -> \Type) (Q : Nat -> \Type) (f : \Pi (x : Nat) -> (P x) -> Q x) (p : \Sigma (x : Nat) (P x)) : \Sigma (x : Nat) (Q x) \elim p
+  | (x, Px) => (x, f x Px)
+
 -- s4 : Если для всех x : Nat либо не верно P(x), либо не верно Q(x), то P(3) влечет, что Q(3) не верно.
+
+\func s4
+  (P : Nat -> \Type)
+  (Q : Nat -> \Type)
+  (f : \Pi (x : Nat) -> Either (Not (P x)) (Not (Q x)))
+  (P3 : P 3)
+  : (Not (Q 3)) => \case (f 3) \with {
+  | inl notP3 => absurd (notP3 P3)
+  | inr notQ3 => notQ3
+}
