@@ -1,4 +1,5 @@
 \import Utils
+\import hw01 (max)
 \import lect03 \hiding (Vec,vnil,vcons)
 \open Nat(+,*)
 
@@ -12,44 +13,104 @@
   | suc x, 0 => false
   | suc x, suc y => x < y
 
-\func lookup => {?}
+\func xx (m n : Nat) (lower : T (suc m < suc n)) : T (m < n) \elim m, n
+  | 0, suc n => ()
+  | suc m, suc n => xx m n lower
+
+-- \func fromNat (m n : Nat) {correct : m < n = true} : Fin n \elim m, n
+
+
+\func lookup {A : \Type} (i : Nat) (xs : List A) {correct : T (i < length xs)} : A \elim i, xs
+  | 0, (cons x _) => x
+  | suc i, (cons _ xs) => lookup i xs {correct}
 
 -- 2. Реализуйте аналоги функции replicate для vec и Vec (эта функция создает список заданной длины, состоящий из повторений данного элемента).
 
+\func append-vec {A : \Type} {n m : Nat} (v1 : vec A n) (v2 : vec A m) : vec A (m + n) \elim n
+  | 0 => v2
+  | suc m => (v1.1, append-vec v1.2 v2)
+
+\func replicate-vec (r : Nat) {A : \Type} {n : Nat} (vs : vec A n) : vec A (n * r) \elim r
+  | 0 => ()
+  | suc r => append-vec vs (replicate-vec r vs)
+
+\func replicate-Vec (r : Nat) {A : \Type} {n : Nat} (vs : Vec A n) : Vec A (n * r) \elim r
+  | 0 => vnil
+  | suc r => vs v++ (replicate-Vec r vs)
+
 -- 3. Реализуйте аналоги функции map для vec и Vec.
+
+\func map-vec {A B : \Type} (f : A -> B) {n : Nat} (vs : vec A n) : vec B n \elim n
+  | 0 => ()
+  | suc n => (f vs.1, map-vec f vs.2)
+
+\func map-Vec {A B : \Type} (f : A -> B) {n : Nat} (vs : Vec A n) : Vec B n \elim n, vs
+  | 0, vnil => vnil
+  | suc n, vcons a vs  => vcons (f a) (map-Vec f vs)
 
 -- 4. Реализуйте аналоги функции zipWith для vec и Vec.
 --    Функция должна принимать вектора одинаковой длины.
 
+\func zipWith-vec {A B : \Type} {n : Nat} (v1 : vec A n) (v2 : vec B n) : vec (\Sigma A B) n \elim n
+  | zero => ()
+  | suc m => ((v1.1, v2.1), zipWith-vec v1.2 v2.2)
+
+\func zipWith-Vec {A B : \Type} {n : Nat} (v1 : Vec A n) (v2 : Vec B n) : Vec (\Sigma A B) n \elim n, v1, v2
+  | 0, vnil, vnil => vnil
+  | suc n, vcons a1 v1, vcons a2 v2 => vcons (a1, a2) (zipWith-Vec v1 v2)
+
 -- 5. Определите конгруэнтность для функций двух аргументов через transport.
 --    Можно использовать любые функции, определенные через transport.
 
-\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' => {?}
+\func papp {A B : \Type} (f f' : A -> B) (p : f = f') (a : A) : f a = f' a =>
+  transport (\lam (ff : A -> B) => f a = ff a) p idp
+
+\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' =>
+  f a b   ==< pmap' (f a) q >==
+  f a b'  ==< (papp (f a) (f a') (pmap' f p) b') >==
+  f a' b' `qed
 
 -- 6. Докажите, что transport выражается через pmap и repl и наоборот.
 
 -- repl говорит, что если у нас есть два равных типа, то у нас есть функция из одного во второй.
 -- Определите repl через transport.
 
-\func repl {A B : \Type} (p : A = B) (a : A) : B => {?}
+\func repl {A B : \Type} (p : A = B) (a : A) : B => transport (\lam T => T) {A} {B} p a
 
 -- Определите transport через repl и pmap.
 
-\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' =>
+  repl (pmap' B p) b
 
 -- 7. Определите тип CTree A n полных бинарных деревьев высоты ровно n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data CTree (A : \Type) (n : Nat)
+\data CTree (A : \Type) (n : Nat) \elim n
+  | zero => cleaf
+  | suc m => cnode A (CTree A m) (CTree A m)
 
 -- 8. Определите тип Tree A n бинарных деревьев высоты не больше n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data Tree (A : \Type) (n : Nat)
+-- \data Tree (A : \Type) (n : Nat) \elim n
+--   | n => tleaf
+--   | suc n => tnode A (Tree A n) (Tree A n)
+
+\data Tree (A : \Type) (n : Nat) \with
+  | A, _ => tleaf
+  | A, suc n => tnode A (Tree A n) (Tree A n)
 
 -- определите функцию, возвращающую высоту дерева.
 
-\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) => {?}
+\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) \elim n, t
+  | _, tleaf => fzero
+  | suc n, tnode _ l r => fsuc (max-fin (height n l) (height n r))
+  \where {
+  \func max-fin {n : Nat} (f1 f2 : Fin n) : Fin n \elim n, f1, f2
+    | suc n, fzero, ff => ff
+    | suc n, ff, fzero => ff
+    | suc n, fsuc f1, fsuc f2 => fsuc (max-fin f1 f2)
+}
 
 -- Optional task
 -- 9. Функции Fin n -> A соответствуют спискам элементов A длины n.
@@ -87,12 +148,51 @@
   | cons x xs => reverse xs ++ cons x nil
 
 -- Это утверждение будет полезно для доказательства.
-\func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs => {?}
+\func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs \elim xs
+  | nil => ++nil (reverse ys)
+  | cons a xs =>
+    reverse (xs ++ ys) ++ cons a nil ==< pmap (\lam ls => ls ++ cons a nil) (reverse++ xs ys) >==
+    (reverse ys ++ reverse xs) ++ cons a nil ==< trans (reverse ys) (reverse xs) (cons a nil) >==
+    reverse ys ++ (reverse xs ++ cons a nil) `qed
+  \where {
+  \func ++nil {A : \Type} (xs : List A) : xs = xs ++ nil \elim xs
+    | nil => idp
+    | cons a xs => pmap (cons a) (++nil xs)
+  \func trans {A : \Type} (xs ys zs : List A) : (xs ++ ys) ++ zs = xs ++ (ys ++ zs) \elim xs
+    | nil => idp
+    | cons a xs => pmap (cons a) (trans xs ys zs)
+  }
 
-\func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs => {?}
+\func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs \elim xs
+  | nil => idp
+  | cons a xs => reverse++ (reverse xs) (cons a nil) *> pmap (cons a) (reverse-isInvolutive xs)
 
 -- 12. Докажите дистрибутивность умножения над сложением для натуральных чисел (выберите 1 из двух вариантов).
 
-\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n => {?}
+\func trans (n m k : Nat) : (n + m) + k = n + (m + k) \elim k
+  | 0 => idp
+  | suc k => pmap suc (trans n m k)
+\func trans1 (n m k : Nat) : n + (m + k) = (n + m) + k => sym' (trans n m k)
+
+\func trans' {n m k : Nat} : (n + m) + k = n + (m + k) => trans n m k
+
+\func comm (n m : Nat) : n + m = m + n => +-comm n m
+
+\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n \elim n
+  | 0 => idp
+  | suc n => pmap (\lam x =>
+      x + (m + k)) (rdistr n m k) *> -- m * n + k * n + (m + k)
+      ll (m * n) (k * n) (m + k) *>   -- m * n + (m + k) + k * n
+      pmap (\lam x => x + k * n) (trans1 (m * n) m k) *> -- m * n + m + k + k * n
+      trans (m * n + m) k (k * n) *>  -- m * n + m + (k + k * n)
+      pmap (\lam x => m * n + m + x) (comm k (k * n)) *>
+      idp \where {
+
+  \func ll (a b c : Nat) : (a + b + c = a + c + b) =>
+    a + b + c ==< trans' >==
+    a + (b + c) ==< pmap (\lam (x : Nat) => a + x) (comm b c) >==
+    a + (c + b) ==< trans1 a c b >==
+    a + c + b `qed
+}
 
 \func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k => {?}
