@@ -1,8 +1,12 @@
 \import Utils
-\import lect03 (+-comm)
+\import lect02 (==, Unit)
+\import lect03 (+-comm, pmap')
+\import lect04 (Nat-rec, v++-assoc)
 \open Nat \hiding (<=)
 
 -- 1. Определите факториал через Nat-rec.
+
+\func fact (n : Nat) : Nat => Nat-rec Nat 1 (\lam (x y : Nat) => suc x * y) n
 
 -- 2. Докажите ассоциативность сложения для натуральных чисел через Nat-elim.
 
@@ -13,11 +17,50 @@
   | con2 D D
   | con3 (Nat -> D)
 
+\func D-elim (P : D -> \Type)
+             (c1 : \Pi (n : Nat) -> (P (con1 n)))
+             (c2 : \Pi (d1 d2 : D) -> P d1 -> P d2 -> P (con2 d1 d2))
+             (c3 : \Pi (f : Nat -> D) -> (\Pi (n : Nat) -> P (f n)) -> P (con3 f))
+             (d : D)
+  : P d \elim d
+  | con1 n => c1 n
+  | con2 d1 d2 => c2 d1 d2 (D-elim P c1 c2 c3 d1) (D-elim P c1 c2 c3 d2)
+  | con3 f => c3 f (\lam (n : Nat) => D-elim P c1 c2 c3 (f n))
+
+-- TODO use ctrl+shift+o
+-- TODO turn on 'show implicit arguments' in settings
+
+\func D-rec (P : \Type)
+            (c1 : Nat -> P)
+            (c2 : D -> D -> P -> P -> P)
+            (c3 : (Nat -> D) -> (Nat -> P) -> P)
+            (d : D)
+  : P => D-elim (\lam _ => P) c1 c2 c3 d
+
+\func D-rec' (P : \Type) => D-elim (\lam _ => P)
+
 -- 4. Определите рекурсор и элиминатор для List.
+
+\func List-elim {A : \Type}
+                (P : List A -> \Type)
+                (cnil : P nil)
+                (ccons : \Pi (x : A) -> \Pi (xs : List A) -> P xs -> P (cons x xs))
+                (xs : List A)
+  : P xs \elim xs
+  | nil => cnil
+  | cons x xs => ccons x xs (List-elim P cnil ccons xs)
+
+\func List-rec {A : \Type}
+               (P : \Type)
+               (cnil : P)
+               (ccons : A -> List A -> P -> P)
+               (xs : List A)
+  : P => List-elim (\lam _ => P) cnil ccons xs
 
 -- 5. Докажите pmap при помощи паттерн матчинга с idp.
 
-\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a' => {?}
+\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a' \elim p
+  | idp => idp
 
 -- Optional:
 -- 6. У оператора J есть другая форма, которую мы будем называть Jalt. Докажите, что J и Jalt эквивалентны, то есть выразите одно через другое и наоборот.
@@ -26,7 +69,7 @@
 
 \func Jalt {A : \Type} (B : \Pi (a a' : A) -> a = a' -> \Type)
            (b : \Pi (a : A) -> B a a idp)
-           {a a' : A} (p : a = a') : B a a' p => {?}
+           {a a' : A} (p : a = a') : B a a' p => J {A} {a} (B a) (b a) {a'} p
 
 -- Выразите J через Jalt. Можно пользоваться только Jalt, idp и всем, что через них выражается.
 -- Hint:
@@ -34,18 +77,38 @@
 -- b. Докажите, что тип \Sigma (x : A) (a = x) одноэлементный, то есть, что для любого p : \Sigma (x : A) (a = x) верно, что (x,idp) = p.
 -- c. Используя эти две конструкции, легко определить J.
 
-\func transport'' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+\func transport'' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' =>
+  (Jalt {A} (\lam x x' q => B x -> B x') (\lam _ => \lam w => w) {a} {a'} p) b
 
-\func sigma-contr {A : \Type} {a : A} (p : \Sigma (x : A) (a = x)) : (a,idp) = {\Sigma (x : A) (a = x)} p => {?}
+\func pmap'' {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a'
+  => transport'' (\lam x => f a = f x) p idp -- копипастим пмап
+
+\func sigma-contr {A : \Type} {a : A} (p : \Sigma (x : A) (a = x)) : (a,idp) = {\Sigma (x : A) (a = x)} p => {?} -- я устал делать необязательное, так что тут без доказательства
+
+\func equalities-are-equal {A : \Type} {a b : A} (p q : a = b) : p = q => {?} -- pmap'' (\lam x => x.2) (sigma-contr (b, p))  <--- это дает idp = q, по ассоциативности/симметричности получаем p = q
+-- свойства равенства вроде все через транспорт выводятся
 
 \func J' {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type)
          (b : B a idp)
-         {a' : A} (p : a = a') : B a' p => {?}
+         {a' : A} (p : a = a') : B a' p =>
+  (Jalt {A} (\lam x x' qq => \Pi (q : a = x) -> \Pi (q' : a = x') -> B x q -> B x' q') (\lam (x : A) (q : a = x) (q' : a = x) (baidp : B x q) {- : B x q' -} =>
+      {- baidp <-- ошибка. Вот тут то и нужна сигма-контр -}
+      transport'' (\lam r => B x r) (equalities-are-equal q q') baidp
+  ) {a} {a'} p) idp p b
 
 -- 7. Докажите, что vnil является нейтральным элементом для v++.
 
-\func vnil-rightId {A : \Type} {n : Nat} (xs : Vec A n) : transport (Vec A) (+-comm 0 n) (xs v++ vnil) = xs => {?}
+\func vnil-rightId {A : \Type} {n : Nat} (xs : Vec A n) : transport (Vec A) (+-comm 0 n) (xs v++ vnil) = xs \elim n, xs
+  | 0, vnil => idp
+  | suc n, vcons x xs =>
+    (v++-assoc.vcons-lem (+-comm 0 n) (xs v++ vnil) x) *>
+    (pmap (vcons x) (vnil-rightId xs))
+    -- не вполне понятно но работает
 
 -- 8. Докажите, что 0 не равно suc x, не используя паттерн матчинг на равенстве.
 
-\func zero/=suc (x : Nat) (p : 0 = suc x) : Empty => {?}
+\func zero/=suc (x : Nat) (p : 0 = suc x) : Empty => transport f (sym p) () \where {
+  \func f (n : Nat) : \Type \elim
+    | 0 => Empty
+    | suc _ => \Sigma
+}
