@@ -1,0 +1,165 @@
+\import Utils
+\import lect05 (filter, funExt)
+
+-- 1. Докажите, что (\lam x => not (not x)) = (\lam x => x).
+
+\func notNotId : (\lam x => not (not x)) = (\lam x => x) => funExt (\lam _ => Bool) (\lam a => \case \elim a \with {
+  | true => idp
+  | false => idp
+} )
+
+-- 2. Докажите, что fac не равен suc.
+
+\open Nat (*)
+
+\func fac (n : Nat) : Nat
+  | 0 => 1
+  | suc n => suc n * fac n
+
+\func fac/=suc (p : fac = suc) : Empty => \case (pmap (\lam f => f 1) p) \with {
+}
+
+-- 3. Докажите, что left = right, не используя transport, coe и паттерн матчинг с idp.
+
+\func left=right : left = right => path (\lam x => x)
+
+-- 4. Докажите, что если a = a' и b = b', то (a,b) = (a',b'), не используя transport, coe и паттерн матчинг с idp.
+
+\func pairEq {A B : \Type} {a a' : A} {b b' : B} (p : a = a') (q : b = b') : (a,b) = (a',b') =>
+  pmap2' (\lam x y => (x, y)) p q
+
+-- 5. Докажите, что если p = p', то p.1 = p'.1, не используя transport, coe и паттерн матчинг с idp.
+
+\func projEq {A : \Type} (B : A -> \Type) {p p' : \Sigma (x : A) (B x)} (t : p = p') : p.1 = p'.1 =>
+  path (\lam i => (t @ i).1)
+
+-- pmap (\lam pp => pp.1) t
+
+-- 6. Докажите pmap2, не используя transport, coe и паттерн матчинг с idp.
+
+\func pmap2' {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' =>
+  path (\lam i => f (p @ i) (q @ i))
+
+-- 7. Мы видели как определить transport через coe. Определите частный случай coe через transport.
+
+\func coe0 (A : I -> \Type) (a : A left) : A right => transport A left=right a
+
+-- 8. Определите функцию B right -> B left.
+
+\func Itr' {B : I -> \Type} (b : B right) : B left => transport B (sym left=right) b
+
+-- 9. Определите предикат принадлежности элемента списку.
+
+\data In {A : \Type} (a : A) (xs : List A) \with
+  | a, cons x xs => headeq (a = x)
+  | a, cons x xs => taileq (In a xs)
+
+-- Optional:
+-- 10. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'.
+
+-- 11. Определите рефлексивное транзитивное замыкание отношения.
+--     То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
+
+\data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | refl (x = y)
+  | trans (z : A) (ReflTransClosure R x z) (ReflTransClosure R z y)
+  | base (R x y)
+
+-- 12. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
+
+\func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
+  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y => \lam x y => (
+  base,
+  RTC-to-R R refl trans x y
+) \where {
+  \func RTC-to-R {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z) (x y : A) (RTC : ReflTransClosure R x y)
+    : R x y \elim RTC
+    | refl p => transport (\lam z => R x z) p (refl x)
+    | trans z RTC1 RTC2 => trans x z y (RTC-to-R R refl trans x z RTC1) (RTC-to-R R refl trans z y RTC2)
+    | base r => r
+}
+
+-- 13. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
+
+\data Sublist {A : \Type} (xs ys : List A) \with
+  | nil, ys => empty-sublist
+  | cons x xs, cons y ys => equal-heads (x = y) (Sublist xs ys)
+  | xs, cons _ ys => sublist-tail (Sublist xs ys)
+
+-- 14. Докажите, что Sublist (filter p xs) xs для любых p и xs.
+
+\func filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => empty-sublist
+  | cons x xs => \case p x \as b \return Sublist (\case b \with {
+    | true => cons x (filter p xs)
+    | false => filter p (xs)
+  }) (cons x xs) \with {
+    | true => equal-heads idp (filter-sublist p xs)
+    | false => sublist-tail (filter-sublist p xs)
+  }
+
+-- Версия с адовыми транспортами
+
+\func filter-sublist' {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => empty-sublist
+  | cons x xs => \case p x \as b, idp : b = p x \return Sublist (filter p (cons x xs)) (cons x xs) \with {
+    | true, q => transport (\lam w => Sublist (\case w \with {
+      | true => cons x (filter p xs)
+      | false => filter p xs
+    }) (cons x xs)) q (equal-heads idp (filter-sublist p xs))
+    | false, q =>
+      (transport (\lam w => Sublist (\case w \with {
+        | true => cons x (filter p xs)
+        | false => filter p xs
+      }) (cons x xs))
+          q (sublist-tail (filter-sublist p xs)))
+  }
+
+-- 15. Определите filter через if, а не через \case.
+--     Докажите для этой версии filter лемму filter-lem.
+
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | cons x xs => if (p x) (cons x (filter' p xs)) (filter' p xs)
+
+\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : length (filter' p xs) Nat.<= length xs \elim xs
+  | nil => Nat.zero<=_
+  | cons x xs => \case p x \as b \return length (if (b) (cons x (filter' p xs)) (filter' p xs)) <= length (cons x xs) \with {
+    | true => Nat.suc<=suc (filter-lem p xs)
+    | false => leq-lem (filter-lem p xs)
+  } \where {
+  \func leq-lem {m n : Nat} (p : m Nat.<= n) : m Nat.<= suc n \elim m, n, p
+    | 0, _, _ => Nat.zero<=_
+    | suc m, suc n, Nat.suc<=suc p => Nat.suc<=suc (leq-lem p)
+}
+
+-- саблист доказывается вот так
+-- в лемме наверное можно было так же сделать, но мы все-таки кейс проходим
+\func filter-sublist''' {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter' p xs) xs \elim xs
+  | nil => empty-sublist
+  | cons a xs => if-lem (\lam l => Sublist l (cons a xs)) (p a)
+      (equal-heads idp (filter-sublist''' p xs))
+      (sublist-tail (filter-sublist''' p xs))
+  \where {
+  \func if-lem {A : \Type} {at af : A} (B : A -> \Type) (b : Bool) (x : B at) (y : B af) : B (if b at af) \elim b
+    | true => x
+    | false => y
+}
+
+-- 16. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
+
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x
+  => \case \elim x, f true \as ft, idp : f true = ft, f false \as ff, idp : f false = ff \with {
+    | true, true, p, _, q => pmap f (pmap f p *> p)
+    | true, false, p, true, q => pmap f (pmap f p *> q)
+    | true, false, p, false, q => \case f (f true) \as c, idp : f (f true) = c \with {
+      | true, w => pmap f w
+      | false, w => pmap f w *> q *> sym p
+    }
+    | false, true, p, true, q => \case f (f false) \as c, idp : f (f false) = c \with {
+      | false, w => pmap f w
+      | true, w => pmap f w *> p *> sym q
+    }
+    | false, false, p, true, q => pmap f (pmap f q *> p)
+    | false, _, p, false, q => pmap f (pmap f q *> q)
+  }

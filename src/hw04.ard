@@ -38,6 +38,12 @@
   : P => D-elim (\lam _ => P) c1 c2 c3 d
 
 \func D-rec' (P : \Type) => D-elim (\lam _ => P)
+{- To check that the definition of D-elim and D-rec is correct, you can try to implement foo using D-rec.
+\func foo (d : D) : Nat
+  | con1 n => n
+  | con2 d1 d2 => foo d1 Nat.+ foo d2
+  | con3 g => foo (g (foo (g 100)))
+-}
 
 -- 4. Определите рекурсор и элиминатор для List.
 
@@ -108,7 +114,7 @@
 -- 8. Докажите, что 0 не равно suc x, не используя паттерн матчинг на равенстве.
 
 \func zero/=suc (x : Nat) (p : 0 = suc x) : Empty => transport f (sym p) () \where {
-  \func f (n : Nat) : \Type \elim
+  \func f (n : Nat) : \Type \elim n
     | 0 => Empty
     | suc _ => \Sigma
 }
