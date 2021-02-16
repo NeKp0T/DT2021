@@ -135,11 +135,11 @@
 
 -- саблист доказывается вот так
 -- в лемме наверное можно было так же сделать, но мы все-таки кейс проходим
-\func filter-sublist''' {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter' p xs) xs \elim xs
+\func filter-sublist'' {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter' p xs) xs \elim xs
   | nil => empty-sublist
   | cons a xs => if-lem (\lam l => Sublist l (cons a xs)) (p a)
-      (equal-heads idp (filter-sublist''' p xs))
-      (sublist-tail (filter-sublist''' p xs))
+      (equal-heads idp (filter-sublist'' p xs))
+      (sublist-tail (filter-sublist'' p xs))
   \where {
   \func if-lem {A : \Type} {at af : A} (B : A -> \Type) (b : Bool) (x : B at) (y : B af) : B (if b at af) \elim b
     | true => x
