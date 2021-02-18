@@ -1,45 +1,152 @@
 \import Utils
+\import lect05 (funExt)
 \import lect06
 \open Nat(+)
 
 -- 1. Определите функцию swap несколькими способами.
 
 -- При помощи \cowith и доступа к полям.
-\func swap {A B : \Type} (p : Pair A B) : Pair B A => {?}
+\func swap {A B : \Type} (p : Pair A B) : Pair B A \cowith
+  | fst_ => p.snd_
+  | snd_ => p.fst_
 
 -- При помощи \new и паттерн матчинга.
-\func swap' {A B : \Type} (p : Pair A B) : Pair B A => {?}
+\func swap' {A B : \Type} (p : Pair A B) : Pair B A \elim p
+  | (f, s) => \new Pair B A {
+    | fst_ => s
+    | snd_ => f
+  }
 
 -- При помощи \new и доступа к полям.
-\func swap'' {A B : \Type} (p : Pair A B) : Pair B A => {?}
+\func swap'' {A B : \Type} (p : Pair A B) : Pair B A => \new Pair B A {
+  | fst_ => p.snd_
+  | snd_ => p.fst_
+}
 
 -- 2. Докажите, что swap (swap p) = p.
 
-\func swap-involutive {A B : \Type} (p : Pair A B) : swap (swap p) = p => {?}
+\func swap-involutive {A B : \Type} (p : Pair A B) : swap (swap p) = p => idp
 
 -- 3. Докажите, что тип PosNat 0 пустой, а тип PosNat 1 нет.
 
-\func zero-isNotPos (p : PosNat 0) : Empty => {?}
+\func zero-isNotPos (p : PosNat 0) : Empty => p.p
 
-\func one-isPos : PosNat 1 => {?}
+\func one-isPos : PosNat 1 \cowith
+  | p => ()
 
 -- 4. Определите \record, состоящий из пар взаимно простых натуральных чисел.
 --    Определите тип, состоящий из натуральных чисел, взаимно простых с 60.
+
+\record Not-divisible (n m : Nat) {
+  | nondiv (d : Nat) (p : m * d = n) : Empty
+}
+
+\record Coprime {
+  | n : Nat
+  | m : Nat
+  | copr (d : Nat) : Either (Not-divisible n d) (Not-divisible m d)
+}
+
+\record Coprime' (n m : Nat) {
+  | copr_ (a b x y : Nat) (a * n + b * m = 1 + x * n + y * m) : Empty
+}
+
+\func Coprime-60 : \Type => Coprime 60
 
 -- 5. Закончите определение класса монад. Этот класс должен содержать все монадные законы и реализовывать все поля из класса функторов.
 
 \class Monad \extends Functor
   | return {A : \Type} : A -> F A
   | \infixl 1 >>= {A B : \Type} : F A -> (A -> F B) -> F B
+  | left-identity {A B : \Type} (a : A) (f : A -> F B) : (return a >>= f) = f a
+  | right-identity {A : \Type} (m : F A) : ((m >>= return) = m)
+  | associativity {A B C : \Type} (m : F A) (f : A -> F B) (g : B -> F C) : (m >>= f >>= g) = (m >>= (\lam x => f x >>= g))
+  | fmap {A B : \Type} (f : A -> B) (m : F A) => m >>= (\lam x => return (f x))
+  | fmap-id {A : \Type} (y : F A) => right-identity y
+  | fmap-comp {A B C : \Type} (f : A -> B) (g : B -> C) (y : F A) {- fmap (\lam x => g (f x)) y = fmap g (fmap f y) -} => \let
+    | assoc : (y >>= (\lam x => return (f x)) >>= (\lam x => return (g x))) = (y >>= (\lam x => return (f x) >>= (\lam x => return (g x))))
+      => associativity y (\lam x => return (f x)) (\lam x => return (g x))
+    | f-lid (x : A) : (return (f x) >>= (\lam x => return (g x))) = (return (g (f x)))
+      => left-identity (f x) (\lam y => return (g y))
+    | xf-lid : (\lam x => (return (f x) >>= (\lam x => return (g x)))) = (\lam x => (return (g (f x))))
+      => funExt (\lam _ => F C) f-lid
+    | yxf-lid : (y >>= (\lam x => return (f x) >>= (\lam x => return (g x)))) = (y >>= (\lam x => (return (g (f x)))))
+      => pmap (\lam fg => y >>= fg) xf-lid
+  \in sym (assoc *> yxf-lid)
+  -- если писать типы получается жесть, если не писать - ничего не получается
 
 -- 6. Определите \instance Monad для Maybe.
 
-\instance MaybeMonad : Monad Maybe => {?}
+\instance MaybeMonad : Monad Maybe
+--  | fmap {A B : \Type} (f : A -> B) (m : Maybe A) : Maybe B \elim m {
+--    | nothing => nothing
+--    | just a => just (f a)
+--  }
+--  | fmap-id {A : \Type} (y : Maybe A) : fmap (\lam (x : A) => x) y = y \elim y {
+--    | nothing => idp
+--    | just a => idp
+--  }
+--  | fmap-comp {A B C : \Type} (f : A -> B) (g : B -> C) (y : Maybe A)
+--  : fmap (\lam x => g (f x)) y = fmap g (fmap f y) \elim y {
+--    | nothing => idp
+--    | just a => idp
+--  }
+  | return {A : \Type} : A -> Maybe A => just
+  | \infixl 1 >>= {A B : \Type} (m : Maybe A) (f : A -> Maybe B) : Maybe B \elim m {
+    | nothing => nothing
+    | just a => f a
+  }
+  | left-identity {A B : \Type} (a : A) (f : A -> Maybe B) : (return a >>= f) = f a => \case f a \with {
+    | nothing => idp
+    | just a1 => idp
+  }
+  | right-identity {A : \Type} (m : Maybe A) : ((m >>= return) = m) \elim m {
+    | nothing => idp
+    | just a => idp
+  }
+  | associativity {A B C : \Type} (m : Maybe A) (f : A -> Maybe B) (g : B -> Maybe C) : (m >>= f >>= g) = (m >>= (\lam x => f x >>= g)) \elim m {
+    | nothing => idp
+    | just a => \case f a \with {
+      | nothing => idp
+      | just a1 => idp
+    }
+  }
 
 -- 7. Определите \instance Monad для State и State'.
 
 \record State (S A : \Type)
   | state : S -> \Sigma S A
 
+\func get-state {S A : \Type} (s : State S A) : S -> \Sigma S A => s.state
+
+\instance StateMonad (S : \Type) : Monad (State S)
+  | return {A} => \lam a => \new State S A {
+    | state => \lam s => (s, a)
+  }
+  | >>= {A B : \Type} (m : State S A) (f : A -> State S B) => \new State S B {
+    | state => \lam s => \let | ms => get-state m s \in get-state (f ms.2) ms.1
+  }
+  | left-identity {A B : \Type} (a : A) (f : A -> State S B) => idp
+  | right-identity {A : \Type} (m : State S A) {- ((m >>= return) = m) -} => idp
+  | associativity {A B C : \Type} (m : State S A) (f : A -> State S B) (g : B -> State S C) {- (m >>= f >>= g) = (m >>= (\lam x => f x >>= g)) -} => idp
+
 \data State' (S A : \Type)
   | state' (S -> \Sigma S A)
+
+\func get-state' {S A : \Type} (m : State' S A) : S -> \Sigma S A
+  | state' s => s
+
+\instance StateMonad' (S : \Type) : Monad (State' S)
+  | return {A} (a : A) => state' (\lam s => (s, a))
+  | >>= {A B : \Type} (m : State' S A) (f : A -> State' S B) => state' (\lam s => \let | ms => get-state' m s \in get-state' (f ms.2) ms.1)
+  | left-identity {A B : \Type} (a : A) (f : A -> State' S B) => state-getstate-lem (f a)
+  | right-identity {A : \Type} (m : State' S A) {- ((m >>= return) = m) -} => right-identity-lem m
+  | associativity {A B C : \Type} (m : State' S A) (f : A -> State' S B) (g : B -> State' S C) => idp
+  \where {
+  \func funExt' {A B : \Type} {f g : A -> B} (p : \Pi (a : A) -> f a = g a) : f = g => funExt (\lam _ => B) p
+  \func getstate-state-lem {S A : \Type} (x : S -> \Sigma S A) : get-state' (state' x) = x => idp
+  \func state-getstate-lem {S A : \Type} (m : State' S A) : state' (\lam s => get-state' m s) = m \elim m
+    | state' x => idp
+  \func right-identity-lem {S A : \Type} (m : State' S A) : state' (\lam s => \let | ms => get-state' m s \in get-state' (state' (\lam s => (s, ms.2))) ms.1) = m \elim m
+    | state' _x => idp
+}
