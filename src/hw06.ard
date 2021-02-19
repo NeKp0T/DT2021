@@ -48,7 +48,11 @@
 }
 
 \record Coprime' (n m : Nat) {
-  | copr_ (a b x y : Nat) (a * n + b * m = 1 + x * n + y * m) : Empty
+  | a : Nat
+  | b : Nat
+  | x : Nat
+  | y : Nat
+  | copr_proof : (a * n + b * m = 1 + x * n + y * m)
 }
 
 \func Coprime-60 : \Type => Coprime 60
