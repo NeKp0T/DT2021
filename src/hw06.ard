@@ -96,7 +96,7 @@
 --    | just a => idp
 --  }
   | return {A : \Type} : A -> Maybe A => just
-  | \infixl 1 >>= {A B : \Type} (m : Maybe A) (f : A -> Maybe B) : Maybe B \elim m {
+  | >>= {A B : \Type} (m : Maybe A) (f : A -> Maybe B) : Maybe B \elim m {
     | nothing => nothing
     | just a => f a
   }
