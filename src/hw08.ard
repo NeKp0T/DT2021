@@ -1,19 +1,122 @@
+\import Algebra.Meta
+\import Algebra.Semiring
 \import Data.List
+\import Data.Or
+\import Function.Meta
+\import Logic.Meta
+\import Meta
 \import Order.LinearOrder
-\import Utils (Maybe, just, maybe, nothing)
-\import lect07(Decide)
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Utils (<->, Maybe, just, maybe, nothing, sym)
+\import lect02 (Empty)
+\import lect05 (funExt)
+\import lect07 (Decide, no, yes)
 \import lect08
+\import Arith.Nat
 \open LinearOrder
+\import Algebra.Monoid
+
 
 -- 1. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
 
+-- copy-paste from List.Sort
+
+\lemma perm-sym {A : \Type} {xs ys : List A} (p : Perm xs ys) : Perm ys xs \elim xs, ys, p
+  | nil, nil, perm-nil => perm-nil
+  | :: x xs, :: y ys, perm-:: p p1 => perm-:: (inv p) (perm-sym p1)
+  | :: x (:: x' xs), :: y (:: y' ys), perm-swap p p1 p2 => perm-swap (inv p1) (inv p) (inv p2)
+  | xs, ys, perm-trans p1 p2 => perm-trans (perm-sym p2) (perm-sym p1)
+
+\func perm<->sort= {A : Dec} {l1 l2 : List A} : Perm l1 l2 <-> (Insertion.sort l1 = Insertion.sort l2) => (
+  perm->sort= l1 l2,
+  \lam sort=sort => run {
+    perm-trans $ Insertion.sort-perm l1,
+    rewrite sort=sort,
+    perm-sym $ Insertion.sort-perm l2
+  }) \where {
+  \func perm->sort= {A : Dec} (l1 l2 : List A) (perm : Perm l1 l2) : (Insertion.sort l1 = Insertion.sort l2) \elim l1, l2, perm
+    | nil, nil, perm-nil => idp
+    | :: x xs, :: y ys, perm-:: p perm => rewrite p $ pmap (Insertion.sort.insert y) $ perm->sort= xs ys perm
+    | :: x (:: x' xs), :: y (:: y' ys), perm-swap p p1 p2 => run {
+      rewrite p,
+      rewrite p1,
+      rewrite p2,
+      Insertion.sort-perm.insert-comm y' y (Insertion.sort ys)
+    }
+    | xs, ys, perm-trans {zs} perm1 perm2 => perm->sort= xs zs perm1 *> perm->sort= zs ys perm2
+}
+
 -- 2. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
-\func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
-  => {?}
+\func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l =>
+  sort-def l (sort l) p s \where {
+  \func sort-def {A : Dec} (l sorted : List A) (p : Perm l sorted) (s : Sorted sorted) : sorted = Insertion.sort l \elim l, sorted, p, s
+    | nil, nil, perm-nil, sorted-nil => idp
+    | :: x l, :: sx sorted, perm-:: x=l p, sorted-cons _x s => run {
+      rewrite x=l,
+      rewriteI $ sort-def l sorted p s,
+      insert-lem _x s
+    }
+    | :: x (:: x' l), :: sx (:: sx' sorted), perm-swap p p1 p2, sorted-cons _x (sorted-cons x<=h s) => run {
+      rewrite p,
+      rewrite p1,
+      rewrite p2,
+      rewriteI $ sort-def sorted sorted perm-refl s,
+      rewrite $ Insertion.sort-perm.insert-comm,
+      rewriteI $ insert-lem x<=h s,
+      mcases \with {
+        | inl sx'<sx => cases _x \with {
+          -- тут заработал contradiction когда заработал
+          | <=-equals sx=sx' => contradiction --  $ <-irreflexive $ transport (\lam x => sx' < x) sx=sx' sx'<sx
+          | <=-less sx<sx' => contradiction --  $ <-irreflexive $ <-transitive sx<sx' sx'<sx
+        }
+        | inr a<=x => idp
+      }
+    }
+    | l, sorted, perm-trans {zs} p1 p2, s => run {
+      rewrite $ sort-def zs sorted p2 s,
+      perm<->sort=.perm->sort= zs l (perm-sym p1)
+    }
+
+  \func insert-lem {A : Dec} {x : A} {xs : List A} (x-head : x <= headDef x xs) (s : Sorted xs) : x :: xs = Insertion.sort.insert x xs \elim xs, x-head, s
+    | nil, _, _ => idp
+    | :: a xs, <=-equals p, sorted-cons a<=head s => mcases \with {
+      | inl x<a => rewrite p $ pmap (a :: __) $ insert-lem a<=head s
+      | inr a<=x => idp
+    }
+    | :: a xs, <=-less x<a, sorted-cons a<=head s => mcases \with {
+      -- и тут заработал
+      | inl a<x => contradiction --  $ <-irreflexive $ <-transitive x<a a<x
+      | inr a<=x => idp
+    }
+}
 
 -- 3. Определите факториал через хвостовую рекурсию.
 --    Докажите, что он равен обычному определению факториала.
+
+\func fact-tail (n : Nat) : Nat => fact-acc n 1 \where {
+  \func fact-acc (n acc : Nat) : Nat \elim n
+    | 0 => acc
+    | suc n \as n+1 => fact-acc n (acc * n+1)
+}
+
+\func fact (n : Nat) : Nat \elim n
+  | 0 => 1
+  | suc n \as n+1 => fact n * n+1
+
+\func fact=fac-tail : fact = fact-tail => path (\lam i n => lem-n-i n @ i) \where {
+  \func lem-fact-acc (n acc : Nat) : (fact n) * acc = fact-tail.fact-acc n acc \elim n
+    | 0 => equation -- NatSemiring.ide-left
+    | suc n \as n+1 => \let p => lem-fact-acc n (acc * (suc n)) \in NatSemiring.*-assoc {fact n} {n+1} {acc} *> run {
+      rewrite $ NatSemiring.*-comm {suc n} {acc},
+      lem-fact-acc n (acc * n+1)
+    }
+
+  \func lem-n-i (n : Nat) : fact n = fact-tail n => unfold fact-tail $ lem-fact-acc n 1
+}
 
 -- 4. Закончите определение \instance Monad для Term.
 
@@ -29,16 +132,32 @@
   | >>=-left {A B : \Type} (a : A) (k : A -> F B) : (return a >>= k) = k a
   | >>=-right {A : \Type} (m : F A) : (m >>= return) = m
   | >>=-assoc {A B C : \Type} (m : F A) (k : A -> F B) (l : B -> F C) : ((m >>= k) >>= l) = (m >>= (\lam a => k a >>= l))
-  | fmap => {?}
-  | fmap-id => {?}
-  | fmap-comp => {?}
+  | fmap {A B : \Type} (f : A -> B) (m : F A) => m >>= (\lam x => return (f x))
+  | fmap-id {A : \Type} (y : F A) => >>=-right y
+  | fmap-comp {A B C : \Type} (f : A -> B) (g : B -> C) (y : F A) {- fmap (\lam x => g (f x)) y = fmap g (fmap f y) -} =>
+    \let
+      | assoc : (y >>= (\lam x => return (f x)) >>= (\lam x => return (g x))) = (y >>= (\lam x => return (f x) >>= (\lam x => return (g x))))
+      => >>=-assoc y (\lam x => return (f x)) (\lam x => return (g x))
+      | f-lid (x : A) : (return (f x) >>= (\lam x => return (g x))) = (return (g (f x)))
+      => >>=-left (f x) (\lam y => return (g y))
+      | xf-lid : (\lam x => (return (f x) >>= (\lam x => return (g x)))) = (\lam x => (return (g (f x))))
+      => funExt (\lam _ => F C) f-lid
+      | yxf-lid : (y >>= (\lam x => return (f x) >>= (\lam x => return (g x)))) = (y >>= (\lam x => (return (g (f x)))))
+      => pmap (\lam fg => y >>= fg) xf-lid
+    \in sym (assoc *> yxf-lid)
 
 \instance MaybeMonad : Monad Maybe
   | return => just
   | >>= m k => maybe nothing k m
-  | >>=-left => {?}
-  | >>=-right => {?}
-  | >>=-assoc => {?}
+  | >>=-left {A B : \Type} (a : A) (f : A -> Maybe B) => idp
+  | >>=-right {A : \Type} (m : Maybe A) => cases m \with {
+    | nothing => idp
+    | just a => idp
+  }
+  | >>=-assoc {A B C : \Type} (m : Maybe A) (f : A -> Maybe B) (g : B -> Maybe C) => cases m \with {
+    | nothing => idp
+    | just a => idp
+  }
 
 \func termMap {A B : \Type} (f : A -> B) (t : Term A) : Term B \elim t
   | var v => var (f v)
@@ -55,8 +174,8 @@
   | lam t => lam (termMap just t)
 -}
 
-\func liftM {A B : \Type} (k : A -> Term B) (m : Maybe A) : Term (Maybe B)
-  => maybe (var nothing) (\lam a => termMap just (k a)) m
+\func liftM {A B : \Type} (k : A -> Term B) (m : Maybe A) : Term (Maybe B) =>
+  maybe (var nothing) (\lam a => termMap just (k a)) m
 
 \instance TermMonad : Monad Term
   | return => var
@@ -66,44 +185,229 @@
     | app t1 t2 => app (t1 >>= k) (t2 >>= k)
     | lam t => lam (t >>= liftM k)
   }
-  | >>=-left => {?}
-  | >>=-right => {?}
-  | >>=-assoc => {?}
+  | >>=-left {A B : \Type} (a : A) (f : A -> Term B) => idp
+  | >>=-right => >>=-right-proof
+  | >>=-assoc => >>=-assoc-proof
+  \where {
+    \func >>=-right-proof {A : \Type} (m : Term A) : (m >>= var) = m \elim m
+      | app m1 m2 => run {
+        rewrite $ >>=-right-proof m1,
+        rewrite $ >>=-right-proof m2,
+        idp
+      }
+      | lam m1 => run {
+        unfold liftM,
+        \let
+          var=maybe : (maybe {A} (var nothing) (\lam a => var (just a)) = var) => path (\lam i m => (maybe-lem m var) @ i)
+        \in rewrite var=maybe $ pmap lam $ >>=-right-proof m1
+      }
+      | var v => idp
+      | unit => idp
+
+    \func maybe-lem {A : \Type} (m : Maybe A) (f : Maybe A -> Term (Maybe A)) : maybe {A} (f nothing) (\lam a => f (just a)) m = f m \elim m
+      | nothing => idp
+      | just a => idp
+
+--    \func liftMn {A B : \Type} (n : Nat) (f : A -> Term B) :
+
+--    \func >>=-assoc-proof-c {A B C : \Type} (m : Term (Maybe A)) (k : A -> Term B) (l : B -> Term C) (n : Nat) : (m >>= liftM k >>= liftM l) = (m >>= liftM (\lam a => k a >>= l)) \elim m
+--      | var v => {?}
+--      | unit => idp
+--      | app m1 m2 => run {
+--        rewrite $ >>=-assoc-proof m1 (liftM k) (liftM l),
+--        rewrite $ >>=-assoc-proof m2 (liftM k) (liftM l),
+--        {?}
+--      }
+--      | lam m => {?}
+
+    \func >>=-assoc-proof {A B C : \Type} (m : Term A) (k : A -> Term B) (l : B -> Term C) : (m >>= k >>= l) = (m >>= (\lam a => k a >>= l)) \elim m
+      | var v => idp
+      | unit => idp
+      | app m1 m2 => run {
+        rewrite $ >>=-assoc-proof m1 k l,
+        rewrite $ >>=-assoc-proof m2 k l,
+        idp
+      }
+      | lam m =>
+        run {
+        rewrite $ >>=-assoc-proof m (liftM k) (liftM l),
+        pmap (\lam t => lam (m >>= t)),
+        run {
+          unfold liftM,
+          funExt (\lam _ => Term (Maybe C)) {(\lam a => liftM k a >>= liftM l)} {liftM (\lam a => k a >>= l)},
+          \lam a => cases a \with {
+            | nothing => idp
+            | just a1 => liftM-lem k l a1
+          }
+        } : ((\lam a => liftM k a >>= liftM l) = liftM (\lam a => k a >>= l))
+      ----       {?}
+      }
+
+    \func liftM-lem {A B C : \Type} (k : A -> Term B) (l : B -> Term C) (a : A)
+      : (liftM k (just a) >>= liftM l) = liftM (\lam (a : A) => k a >>= l) (just a)
+      => run {
+        unfold liftM,
+        liftM-lem2 0 l (k a)
+    }
+
+    \func liftM-lem2 {B C : \Type} (n : Nat) (l : B -> Term C) (t : Term B)
+      : (termMap just t >>= liftM l) = termMap just (t >>= l) \elim t
+      | var v => idp
+      | unit => idp
+      | app t1 t2 => run {
+        rewrite $ liftM-lem2 0 l t1,
+        rewrite $ liftM-lem2 0 l t2,
+        idp
+      }
+      | lam t => run {
+--              rewrite $ liftM-lem2 0 (maybe (var nothing) (\lam a => termMap just (l a))) t,
+        {?}
+      }
+
+    \func liftM-lem2-c
+      {B C : \Type}
+      (skjust : B -> Maybe B)
+      (skjust2 : C -> Maybe C)
+      (l : B -> Term C)
+      (t : Term B)
+      (p : \Pi (w : B) -> liftM l (skjust w) = termMap skjust2 (l w))
+      : (termMap skjust t >>= liftM l) = termMap skjust2 (t >>= l) \elim t
+      | var v => p v
+      | unit => idp
+      | app t1 t2 => run {
+        rewrite $ liftM-lem2-c skjust skjust2 l t1 p,
+        rewrite $ liftM-lem2-c skjust skjust2 l t2 p,
+        idp
+      }
+      | lam t => run {
+      --        rewrite $ liftM-lem2 0 (maybe (var nothing) (\lam a => termMap just (l a))) t,
+        pmap lam,
+        liftM-lem2-c
+            {Maybe B} {Maybe C}
+            (maybe nothing (\lam x => just (skjust x)))
+            (maybe nothing (\lam x => just (skjust2 x)))
+            (liftM l)
+            t
+            (godhelp skjust skjust2 l p __)
+      }
+
+    \func godhelp
+      {B C : \Type}
+      (skjust : B -> Maybe B)
+      (skjust2 : C -> Maybe C)
+      (l : B -> Term C)
+      (p : \Pi (w : B) -> liftM l (skjust w) = termMap skjust2 (l w))
+      (w : Maybe B)
+      : (liftM (liftM l) (maybe nothing (\lam x => just (skjust x)) w) =
+        termMap (maybe nothing (\lam x => just (skjust2 x))) (liftM l w))
+      \elim w
+        | nothing => idp
+        | just a => run {
+          rewrite (idp : ((liftM l (just a)) = termMap just (l a))),
+--          unfold liftM,
+          {?}
+        }
+  }
+    
+    \func yet-another-lem {B C : \Type} (l : B -> Term C) (t : Term (Maybe B))
+      :  lam (termMap (maybe nothing (\lam x => just (just x))) t >>= liftM (liftM l)) = lam (termMap (maybe nothing (\lam x => just (just x))) (t >>= liftM l)) => {?}
+    --      run {
+--      unfold liftM,
+--      cases t idp \with {
+--        | app t1 t2 => run {
+--          rewrite $ liftM-lem2 l t1,
+--          rewrite $ liftM-lem2 l t2,
+--          idp
+--        }
+--        | lam t1 => run {
+----          rewrite $ liftM-lem2 (maybe (just nothing) l) t1,
+--          {?}
+--        }
+--      }
+--    }
+
+    --    \func liftM-lem {A B C : \Type} (k : A -> Term B) (l : B -> Term C) : (\lam a => liftM k a >>= liftM l) = liftM (\lam a => k a >>= l)
 
 -- 5. Определите отношение многошаговой редукции на Term.
 
-\func Red {V : \Type} (t s : Term V) : \Type => {?}
+\data Red {V : \Type} (t s : Term V) \elim t, s
+  | lam t, lam s => lamRed* (Red t s)
+  | app t1 t2, app s1 s2 => {
+    | appLeft* (Red t1 s1) (Red t2 s2)
+  }
+  | app t a, s => beta* (f : Term (Maybe V)) (lam f = t)
+                       (Red (f TermMonad.>>= maybe a var) s)
+  | t, s => idpRed* (t = s)
 
 -- 6. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
 --    Определите любую стратегию редукции.
 
-\func strategy {V : \Type} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+\func strategy {V : \Type} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | var v => no (\lam s_red => cases s_red.2)
+  | unit => no (\lam s_red => cases s_red.2)
+  | lam t => cases (strategy t) \with {
+    | yes s_red => yes $ (lam s_red.1, lamRed s_red.2)
+    | no no-t-red => no (\lam s_red => cases (s_red.1, s_red.2) contradiction \with {
+      | lam t', r => cases r \with {
+        | lamRed r1 => no-t-red (t', r1)
+      }
+    })
+  }
+  | app t1 t2 => cases (strategy t1) \with {
+    | yes (t1', red) => yes $ (app t1' t2, appLeft red idp)
+    | no no-t1' => cases (strategy t2) \with {
+      | yes (t2', red) => yes $ (app t1 t2', appRight idp red)
+      | no no-t2' => cases (t1 arg addPath) \with {
+        | lam f, q => yes $ ((f >>= maybe t2 var), beta f idp idp)
+
+        -- копипаста, хз как без нее
+        | unit, q => no $ (\lam s_r => cases (s_r.1, s_r.2) \with {
+          | app s1 s2, appLeft x p => no-t1' (s1, rewrite q x)
+          | app s1 s2, appRight p x => no-t2' (s2, x)
+          | s, beta f p p1 => contradiction p
+        })
+        | var v, q => no $ (\lam s_r => cases (s_r.1, s_r.2) \with {
+          | app s1 s2, appLeft x p => no-t1' (s1, rewrite q x)
+          | app s1 s2, appRight p x => no-t2' (s2, x)
+          | s, beta f p p1 => contradiction p
+        })
+        | app x1 x2, q => no $ (\lam s_r => cases (s_r.1, s_r.2) \with {
+          | app s1 s2, appLeft x p => no-t1' (s1, rewrite q x)
+          | app s1 s2, appRight p x => no-t2' (s2, x)
+          | s, beta f p p1 => contradiction p
+        })
+      }
+    }
+  }
 
 -- 7. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
+\func appAccLeft {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc app-acc => acc (\lam t' r => \case \elim t, \elim t', \elim r \with {
+      | lam t, lam s1, lamRed r => {?}
+      | app t1 t2, app s1 s2, appLeft r p => {?}
+      | app t1 t2, app s1 s2, appRight p r => {?}
+      | app t a, s1, beta f p _x => {?}
+    }
 
-\func appAccRight {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
+                       )
 
-\func subLamAcc {V : \Type} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
-  => {?}
+\func appAccRight {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t => {?}
+
+\func subLamAcc {V : \Type} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t => {?}
 
 -- 8. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
 \func substLem {U V : \Type} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
                (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
-  : hasType ctx' (b >>= a) B
-  => {?}
+  : hasType ctx' (b >>= a) B => {?}
 
 \func substLem1 => {?}
 
 -- 9. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
 
 \func redLem {V : \Type} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A)
-  : hasType ctx a' A
-  => {?}
+  : hasType ctx a' A => {?}
 
 -- Optional
 -- 10. Докажите typeableInterp из лекции
