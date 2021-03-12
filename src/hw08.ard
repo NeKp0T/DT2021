@@ -335,7 +335,7 @@
   | app t1 t2, app s1 s2 => {
     | appLeft* (Red t1 s1) (Red t2 s2)
   }
-  | app t a, s => beta* (f : Term (Maybe V)) (lam f = t)
+  | app t a, s => beta* (f : Term (Maybe V)) (Red t (lam f))
                        (Red (f TermMonad.>>= maybe a var) s)
   | t, s => idpRed* (t = s)
 
