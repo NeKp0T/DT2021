@@ -1,26 +1,47 @@
+\import Function.Meta
+\import Logic.Meta
 \import lect10
-\import Utils \hiding (transport,Or,inl,inr)
+\import Utils \hiding (transport, Or, inl, inr)
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
 
-\func trunc-prop {A : \Prop} : Trunc A <-> A => {?}
+\func trunc-prop {A : \Prop} : Trunc A <-> A => (\lam t => \case \elim t \with {
+  | trunc a => a
+}, trunc)
 
 -- 2. Докажите следующий закон де Моргана.
 
-\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => {?}
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => (
+  \lam o => \case o.2 \with {
+    | inl a => inl (o.1, a)
+    | inr b => inr (o.1, b)
+  },
+  \lam o => \case \elim o \with {
+    | inl a => (a.1, inl a.2)
+    | inr b => (b.1, inr b.2)
+  })
 
 -- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
 
+
+-- TODO prop exist || ambival??
 \func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
               (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
-              (p : A `Or` B) : C p => {?}
+              (p : A `Or` B) : C p => Or-rec {\Sigma (x : A) (p = inl x)} {\Sigma (x : B) (p = inr x)} {C p} {?} {?} {?} \where {
+  \func Or-elm {A B : \Prop} (C : \Pi (a : A) -> \Prop) (D : \Pi (b : B) -> \Prop)
+               (f : \Pi (x : A) -> C x) (g : \Pi (y : B) -> D y)
+               (p : A `Or` B) : \Sigma => {?}
+}
 
 -- 4. Докажите, что тип утверждений является множеством.
 
+-- нужна амивалентность
 \func prop-isSet : isSet \Prop => {?}
 
+-- 5 НАДО ЗАПУЛИТЬ ОНО ПОМЕНЯЛСЬ/УБРАНО
 -- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2.
 
+-- на подумать, на пропозициональную экзестенциональность
 -- Можно сделать только одно из упражнений 6a,6b на выбор.
 -- 6a. Тип С называется когенератором, если для любых множеств A и B и любых функция f,g : A -> B верно, что если h `o` f = h `o` g для всех h : B -> C, то f = g.
 --     Докажите, что \Prop является когенератором.
@@ -36,6 +57,7 @@
 
 \func isInj {A B : \Type} (f : A -> B) => \Pi (x y : A) -> f x = f y -> x = y
 
-\func isInjective (X : \Type) => \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l `o` i = f)
+\func isInjective (X : \Type) =>
+  \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l `o` i = f)
 
 \func Prop-isInjective : isInjective \Prop => {?}

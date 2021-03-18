@@ -344,15 +344,12 @@
         | cons x xs, cons x' xs', rl=rl' => pmap unret-val rl=rl'
         | nil, cons x xs, rl=rl' => contradiction $ pmap (__.1) rl=rl'
         | cons x xs, nil, rl=rl' => contradiction $ pmap (__.1) rl=rl'
-        --        pmap unret-val rl=rl'
       })
       (\lam (l=l' : l = l') => \case \elim l', \elim l=l' \with {
         | l', idp => \case \elim l \with {
           | nil => idp
           | cons x xs => idp
         }
-        --        | nil, cons x xs, l=l' => contradiction l=l'
-        --        | cons x xs, nil, l=l' => contradiction l=l'
       })
       p q
 
