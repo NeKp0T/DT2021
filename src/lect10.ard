@@ -1,5 +1,5 @@
+\import Set
 \import Utils
-\import lect06_orig
 
 -- 1. Вселенные, полиморфизм по уровням.
 

@@ -1,5 +1,8 @@
+\import Function
 \import Function.Meta
-\import Logic.Meta
+\import Meta
+\import Paths.Meta
+\import lect09 (Sigma-isProp, cancelLeft, retract'-isProp)
 \import lect10
 \import Utils \hiding (transport, Or, inl, inr)
 
@@ -23,36 +26,59 @@
 
 -- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
 
-
--- TODO prop exist || ambival??
 \func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
               (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
-              (p : A `Or` B) : C p => Or-rec {\Sigma (x : A) (p = inl x)} {\Sigma (x : B) (p = inr x)} {C p} {?} {?} {?} \where {
-  \func Or-elm {A B : \Prop} (C : \Pi (a : A) -> \Prop) (D : \Pi (b : B) -> \Prop)
-               (f : \Pi (x : A) -> C x) (g : \Pi (y : B) -> D y)
-               (p : A `Or` B) : \Sigma => {?}
-}
+              (p : A `Or` B) : C p =>
+  Or-rec
+      (\lam x => transport id ((pmap C $ Path.inProp _ _)) (f x))
+      (\lam x => transport id ((pmap C ext)) (g x))
+      p
 
 -- 4. Докажите, что тип утверждений является множеством.
 
--- нужна амивалентность
-\func prop-isSet : isSet \Prop => {?}
+-- with ext
 
--- 5 НАДО ЗАПУЛИТЬ ОНО ПОМЕНЯЛСЬ/УБРАНО
--- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2.
+\func prop-isSet' : isSet \Prop => \lam x y x1 y1 => ext
 
--- на подумать, на пропозициональную экзестенциональность
--- Можно сделать только одно из упражнений 6a,6b на выбор.
--- 6a. Тип С называется когенератором, если для любых множеств A и B и любых функция f,g : A -> B верно, что если h `o` f = h `o` g для всех h : B -> C, то f = g.
+-- w/o ext
+
+\func retract''-isProp {A : \Type} {a a' : A} (B : A -> A -> \Type) (pB : \Pi {a a' : A} -> isProp (B a a'))
+                       (f : \Pi {a a' : A} -> a = a' -> B a a')
+                       (g : \Pi {a a' : A} -> B a a' -> a = a')
+  : isProp (a = a') => \let | h {a a' : A} (p : a = a') : a = a' => g (f p)
+                            | h-idemp {a a' : A} (p : a = a') : h (h p) = h p => pmap g (pB _ _ )
+                            | s {a a' : A} (p : a = a') : h idp *> p = h p => \case \elim a', \elim p \with {
+                              | _, idp => idp
+                            }
+                            | q {a : A} : h idp *> h idp = h idp => s (h idp) *> h-idemp {a} idp
+                            | t (a : A) : h {a} idp = idp => cancelLeft (h idp) (h idp) idp q
+                            | H' {a a' : A} (p : a = a') : \Sigma (y : B a a') (g y = p) => \case \elim a', \elim p \with {
+                              | _, idp => (f {a} idp, t a)
+                            }
+                       \in retract'-isProp {a = a'} {B a a'} pB g H'
+
+\func prop-isSet : isSet \Prop => \lam A B => retract''-isProp {\Prop} {A} {B} (\lam X Y => \Sigma (X -> Y) (Y -> X))
+    (\lam {_} {_} => (Sigma-isProp propf propf))
+    (\lam {a} {a'} p => (transport {\Prop} (\lam x => x) p, transport {\Prop} (\lam x => x) $ sym p))
+    (\lam fg => propExt fg.1 fg.2) \where {
+  \func propf {A : \Type} {B : \Prop} (f g : A -> B) : f = g => path (\lam i a => Path.inProp (f a) (g a) @ i)
+}
+
+-- Можно сделать только одно из упражнений 5a,5b на выбор.
+-- 5a. Тип С называется когенератором, если для любых множеств A и B и любых функция f,g : A -> B верно, что если h `o` f = h `o` g для всех h : B -> C, то f = g.
 --     Докажите, что \Prop является когенератором.
 
 \func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
 
 \func isCogenerator (C : \Type) => \Pi {A B : \Set} (f g : A -> B) (p : \Pi (h : B -> C) -> h `o` f = h `o` g) -> f = g
 
-\func PropIsCogenerator : isCogenerator \Prop => {?}
+\func PropIsCogenerator : isCogenerator \Prop => \lam {A} {B} f g p => ext (
+  \lam a => lem $ pmap (__ a) (p (f a = __))
+) \where {
+  \func lem {A : \Set} {a b : A} (p : (a = a) = (a = b)) : a = b => rewriteI p idp
+}
 
--- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
+-- 5b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
 --     Докажите, что \Prop инъективен.
 
 \func isInj {A B : \Type} (f : A -> B) => \Pi (x y : A) -> f x = f y -> x = y
@@ -60,4 +86,11 @@
 \func isInjective (X : \Type) =>
   \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l `o` i = f)
 
-\func Prop-isInjective : isInjective \Prop => {?}
+\func Prop-isInjective : isInjective \Prop => \lam {A} {B} f i p
+=> (\lam b => Trunc (\Sigma (a : A) (i a = b) (f a)),
+    ext (\lam a => propExt
+        (\lam t => \case \elim t \with {
+          | trunc (a', q, fa') => rewriteI (p _ _ q) fa'
+        })
+        (\lam fa => trunc (a, idp, fa)))
+    )
